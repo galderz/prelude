@@ -2,7 +2,7 @@
 
 ;; Copyright (C) 2005 - 2015  Jorgen Schaefer
 
-;; Version: 2.1
+;; Version: 2.5
 ;; Keywords: IRC, chat
 ;; Author: Jorgen Schaefer <forcer@forcix.cx>
 ;; URL: https://github.com/jorgenschaefer/circe
@@ -31,7 +31,7 @@
 
 ;;; Code:
 
-(defvar circe-version "2.1"
+(defvar circe-version "2.5"
   "Circe version string.")
 
 (require 'circe-compat)
@@ -45,7 +45,9 @@
 
 ;; Used to be optional. But sorry, we're in the 21st century already.
 (require 'lui-irc-colors)
-(enable-lui-irc-colors)
+
+;; necessary for inheriting from diff-added and diff-removed faces
+(require 'diff-mode)
 
 (defgroup circe nil
   "Yet Another Emacs IRC Client."
@@ -66,14 +68,19 @@
   :group 'circe)
 
 (defface circe-server-face
-  '((((type tty)) :foreground "blue" :weight bold)
+  '((((type tty)) (:foreground "blue" :weight bold))
+    (((background dark)) (:foreground "#5095cf"))
+    (((background light)) (:foreground "#3840b0"))
     (t (:foreground "SteelBlue")))
   "The face used to highlight server messages."
   :group 'circe)
 
 (defface circe-highlight-nick-face
-  '((((type tty)) (:foreground "cyan" :weight bold))
-    (t (:foreground "CadetBlue3" :weight bold)))
+  '((default (:weight bold))
+    (((type tty)) (:foreground "cyan"))
+    (((background dark)) (:foreground "#82e2ed"))
+    (((background light)) (:foreground "#0445b7"))
+    (t (:foreground "CadetBlue3")))
   "The face used to highlight messages directed to us."
   :group 'circe)
 
@@ -85,19 +92,19 @@
   "The face used to highlight the originator of a message."
   :group 'circe)
 
-(defface circe-topic-diff-new-face '((t (:background "DarkGreen")))
+(defface circe-topic-diff-new-face '((t (:inherit diff-added)))
   "The face used for text added to a topic.
 See the {topic-diff} parameter to `circe-format-server-topic'."
   :group 'circe)
 
-(defface circe-topic-diff-removed-face '((t (:background "DarkRed")))
+(defface circe-topic-diff-removed-face '((t (:inherit diff-removed)))
   "The face used for text removed from a topic.
 See the {topic-diff} parameter to `circe-format-server-topic'."
   :group 'circe)
 
 (defface circe-fool-face
   '((((type tty)) (:foreground "grey40" :bold t))
-    (((type x)) (:foreground "grey40")))
+    (t (:foreground "grey40")))
   "The face used for fools.
 See `circe-fool-list'."
   :group 'circe)
@@ -321,7 +328,7 @@ can be displayed using \\[lui-toggle-ignored]."
 (defcustom circe-ignore-functions nil
   "A list of functions to check whether we should ignore a message.
 
-These functions get five arguments: NICK, USERHOST, and BODY. If
+These functions get three arguments: NICK, USERHOST, and BODY. If
 one of them returns a non-nil value, the message is ignored."
   :type 'hook
   :group 'circe)
@@ -344,7 +351,8 @@ Good luck."
   "How often Circe should attempt to reconnect to the server.
 If this is 0, Circe will not reconnect at all. If this is nil,
 it will try to reconnect forever (not recommended)."
-  :type 'integer
+  :type '(choice integer
+                 (const :tag "Forever" nil))
   :group 'circe)
 
 (defcustom circe-netsplit-delay 60
@@ -354,15 +362,18 @@ the user is re-notified."
   :type 'number
   :group 'circe)
 
-(defcustom circe-server-killed-confirmation 'ask
+(defcustom circe-server-killed-confirmation 'ask-and-kill-all
   "How to ask for confirmation when a server buffer is killed.
 This can be one of the following values:
   ask - Ask the user for confirmation
   ask-and-kill-all - Ask the user, and kill all associated buffers
+  kill-all - Don't ask the user, and kill all associated buffers
   nil - Kill first, ask never"
   :type '(choice (const :tag "Ask before killing" ask)
                  (const :tag "Ask, then kill all associated buffers"
                         ask-and-kill-all)
+                 (const :tag "Don't ask, then kill all associated buffers"
+                        kill-all)
                  (const :tag "Don't ask" nil))
   :group 'circe)
 
@@ -371,8 +382,8 @@ This can be one of the following values:
 This can be one of the following values:
   ask - Ask the user for confirmation
   nil - Don't ask, just kill"
-  :type '(choid (const :tag "Ask before killing" ask)
-                (const :tag "Don't ask" nil))
+  :type '(choice (const :tag "Ask before killing" ask)
+                 (const :tag "Don't ask" nil))
   :group 'circe)
 
 (defcustom circe-track-faces-priorities '(circe-highlight-nick-face
@@ -1034,14 +1045,17 @@ joined channels.")
       (format "%s" circe-version))))
 
 (defun circe--git-version ()
-  (let* ((current-file-path (or load-file-name buffer-file-name
-                                (locate-library "circe.el")))
-         (vcs-path (locate-dominating-file current-file-path ".git")))
-    (when vcs-path
-      (let ((default-directory vcs-path))
-        ;; chop off the trailing newline
-        (substring (shell-command-to-string "git rev-parse --short HEAD")
-                   0 -1)))))
+  (let ((current-file-path (or load-file-name buffer-file-name)))
+    (when (or (not current-file-path)
+              (not (equal (file-name-nondirectory current-file-path)
+                          "circe.el")))
+      (setq current-file-path (locate-library "circe.el")))
+    (let ((vcs-path (locate-dominating-file current-file-path ".git")))
+      (when vcs-path
+        (let ((default-directory vcs-path))
+          ;; chop off the trailing newline
+          (substring (shell-command-to-string "git rev-parse --short HEAD")
+                     0 -1))))))
 
 ;;;###autoload
 (defun circe (network-or-server &rest server-options)
@@ -1184,16 +1198,25 @@ See `circe-server-max-reconnect-attempts'.")
   (interactive)
   (with-circe-server-buffer
     (when (or (called-interactively-p 'any)
-              (not circe-server-inhibit-auto-reconnect-p)
-              (not circe-server-max-reconnect-attempts)
-              (<= circe-server-reconnect-attempts
-                  circe-server-max-reconnect-attempts))
+              (circe--reconnect-p))
       (setq circe-server-inhibit-auto-reconnect-p t
             circe-server-reconnect-attempts (+ circe-server-reconnect-attempts
                                                1))
       (unwind-protect
           (circe-reconnect--internal)
         (setq circe-server-inhibit-auto-reconnect-p nil)))))
+
+(defun circe--reconnect-p ()
+  (cond
+   (circe-server-inhibit-auto-reconnect-p
+    nil)
+   ((not circe-server-max-reconnect-attempts)
+    t)
+   ((<= circe-server-reconnect-attempts
+        circe-server-max-reconnect-attempts)
+    t)
+   (t
+    nil)))
 
 (defun circe-reconnect--internal ()
   "The internal function called for reconnecting unconditionally.
@@ -1330,8 +1353,10 @@ lui-mode
   `-circe-chat-mode
     `-circe-channel-mode
     `-circe-query-mode"
+  (add-hook 'lui-pre-output-hook 'lui-irc-colors
+            t t)
   (add-hook 'lui-pre-output-hook 'circe--output-highlight-nick
-            nil t)
+            t t)
   (add-hook 'completion-at-point-functions 'circe--completion-at-point
             nil t)
   (lui-set-prompt circe-prompt-string)
@@ -1453,7 +1478,7 @@ or if it matches the first word in BODY.
 PATTERNS should be the list of regular expressions."
   (let ((string (format "%s!%s" nick userhost))
         (target (when (and body
-                           (string-match "^\\([^ ]*\\)[:, ]" body))
+                           (string-match "^\\([^ ]*\\)[:,]" body))
                   (match-string 1 body))))
     (catch 'return
       (dolist (regex patterns)
@@ -1803,7 +1828,8 @@ server's chat buffers."
     (irc-send-QUIT circe-server-process circe-default-quit-message))
   (ignore-errors
     (delete-process circe-server-process))
-  (when (eq circe-server-killed-confirmation 'ask-and-kill-all)
+  (when (or (eq circe-server-killed-confirmation 'ask-and-kill-all)
+            (eq circe-server-killed-confirmation 'kill-all))
     (dolist (buf (circe-server-chat-buffers))
       (let ((circe-channel-killed-confirmation nil))
         (kill-buffer buf)))))
@@ -1855,6 +1881,19 @@ This is used by Circe to know where to put spurious messages."
           (with-circe-server-buffer
             (setq circe-server-last-active-buffer buf)))))))
 (ad-activate 'select-window)
+
+(defun circe-reduce-lurker-spam ()
+  "Return the value of `circe-reduce-lurker-spam'.
+
+This uses a buffer-local value first, then the one in the server
+buffer.
+
+Use this instead of accessing the variable directly to enable
+setting the variable through network options."
+  (if (local-variable-p 'circe-reduce-lurker-spam)
+      circe-reduce-lurker-spam
+    (with-circe-server-buffer
+      circe-reduce-lurker-spam)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;; Chat Buffer Management ;;;;
@@ -2109,7 +2148,7 @@ A nick was regained if the NEW nick was also a recent user."
                         (irc-user-last-activity-time recent-user)))))
     (cond
      ;; If we do not track lurkers, no one is ever a lurker.
-     ((not circe-reduce-lurker-spam)
+     ((not (circe-reduce-lurker-spam))
       nil)
      ;; We ourselves are never lurkers (in this sense).
      ((circe-server-my-nick-p nick)
@@ -2417,7 +2456,8 @@ Arguments are IGNORED."
                                             circe-chat-target))
            (topic (when channel
                     (irc-channel-topic channel))))
-      (lui-replace-input (format "/TOPIC %s %s" circe-chat-target topic)))
+      (lui-replace-input (format "/TOPIC %s %s"
+                                 circe-chat-target (or topic ""))))
     (goto-char (point-max))))
 
 (defun circe-command-CLEAR (&optional ignored)
@@ -2465,9 +2505,7 @@ If ARGUMENT is nil, it is interpreted as no argument."
   (interactive "sReason: ")
   (dolist (buf (circe-server-buffers))
     (with-current-buffer buf
-      (when (eq (process-status circe-server-process)
-                'open)
-        (irc-send-AWAY circe-server-process reason)))))
+      (irc-send-AWAY circe-server-process reason))))
 
 (defun circe-command-GQUIT (reason)
   "Quit all servers with reason REASON."
@@ -2521,10 +2559,15 @@ consisting of two words, the nick and the channel."
 (defun circe-command-JOIN (channel)
   "Join CHANNEL. This can also contain a key."
   (interactive "sChannel: ")
-  (let ((channel (string-trim channel)))
-    (pop-to-buffer
-     (circe-server-get-or-create-chat-buffer channel 'circe-channel-mode))
-    (irc-send-JOIN (circe-server-process) channel)))
+  (let (channels keys)
+    (when (string-match "^\\s-*\\([^ ]+\\)\\(:? \\([^ ]+\\)\\)?$" channel)
+      (setq channels (match-string 1 channel)
+            keys (match-string 3 channel))
+      (dolist (channel (split-string channels ","))
+        (pop-to-buffer
+         (circe-server-get-or-create-chat-buffer channel
+                                                 'circe-channel-mode)))
+      (irc-send-JOIN (circe-server-process) channels keys))))
 
 (defun circe-command-ME (line)
   "Send LINE to IRC as an action."
@@ -2555,7 +2598,7 @@ message separated by a space."
       (if buf
           (with-current-buffer buf
             (circe-command-SAY what)
-            (ring-insert lui-input-ring what))
+            (lui-add-input what))
         (with-current-buffer (circe-server-last-active-buffer)
           (irc-send-PRIVMSG (circe-server-process)
                             who what)
@@ -2616,7 +2659,8 @@ message separated by a space."
     (pop-to-buffer
      (circe-server-get-or-create-chat-buffer who 'circe-query-mode))
     (when what
-      (circe-command-SAY what))))
+      (circe-command-SAY what)
+      (lui-add-input what))))
 
 (defun circe-command-QUIT (reason)
   "Quit the current server giving REASON."
@@ -2911,8 +2955,9 @@ Arguments are either of the two:
                    :nick nick
                    :userhost (or userhost "server")
                    :target target
-                   :body text
-                   :ago (let ((time (string-to-number text)))
+                   :body (or text "")
+                   :ago (let ((time (when text
+				      (string-to-number text))))
                           (if time
                               (format "%.2f seconds" (- (float-time) time))
                             "unknown seconds")))))
@@ -2975,7 +3020,7 @@ IRC servers."
                                   (seconds-to-time (cadr split)))
                            :ago (circe-duration-string
                                  (- (float-time) (cadr split)))))))
-       ((and circe-reduce-lurker-spam
+       ((and (circe-reduce-lurker-spam)
              (circe-lurker-rejoin-p nick circe-chat-target))
         (let* ((channel (irc-connection-channel (circe-server-process)
                                                 circe-chat-target))
@@ -2993,7 +3038,7 @@ IRC servers."
                          :departuredelta (circe-duration-string
                                           (- (float-time)
                                              departed)))))
-       ((not circe-reduce-lurker-spam)
+       ((not (circe-reduce-lurker-spam))
         (circe-display 'circe-format-server-join
                        :nick nick
                        :userhost (or userhost "server")
@@ -3048,7 +3093,7 @@ IRC servers."
     (dolist (buf (circe-user-channels new-nick))
       (with-current-buffer buf
         (cond
-         ((and circe-reduce-lurker-spam
+         ((and (circe-reduce-lurker-spam)
                (circe-lurker-p new-nick))
           nil)
          ((circe-channel-user-nick-regain-p old-nick new-nick)
@@ -3506,45 +3551,45 @@ regular expression."
 ;;; Deprecated functions and variables
 
 (define-obsolete-function-alias 'circe-server-nick 'circe-nick
-  "Circe 2.1")
+  "Circe 2.0")
 
 (define-obsolete-function-alias 'circe-server-message
   'circe-display-server-message
-  "Circe 2.1")
+  "Circe 2.0")
 
 (define-obsolete-variable-alias 'circe-networks 'circe-network-defaults
-  "Circe 2.1")
+  "Circe 2.0")
 
 (define-obsolete-variable-alias 'circe-server-name 'circe-host
-  "Circe 2.1")
+  "Circe 2.0")
 
 (define-obsolete-variable-alias 'circe-server-service 'circe-port
-  "Circe 2.1")
+  "Circe 2.0")
 
 (define-obsolete-variable-alias 'circe-server-network 'circe-network
-  "Circe 2.1")
+  "Circe 2.0")
 
 (define-obsolete-variable-alias 'circe-server-ip-family 'circe-ip-family
-  "Circe 2.1")
+  "Circe 2.0")
 
 (define-obsolete-variable-alias 'circe-server-nick 'circe-nick
-  "Circe 2.1")
+  "Circe 2.0")
 
 (define-obsolete-variable-alias 'circe-server-user 'circe-user
-  "Circe 2.1")
+  "Circe 2.0")
 
 (define-obsolete-variable-alias 'circe-server-pass 'circe-pass
-  "Circe 2.1")
+  "Circe 2.0")
 
 (define-obsolete-variable-alias 'circe-server-realname 'circe-realname
-  "Circe 2.1")
+  "Circe 2.0")
 
 (define-obsolete-variable-alias 'circe-server-use-tls 'circe-use-tls
-  "Circe 2.1")
+  "Circe 2.0")
 
 (define-obsolete-variable-alias 'circe-server-auto-join-channels
   'circe-channels
-  "Circe 2.1")
+  "Circe 2.0")
 
 (provide 'circe)
 ;;; circe.el ends here
