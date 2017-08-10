@@ -7,12 +7,12 @@
 
 
 ;; Install Intero
-(package-install 'intero)
+(require 'intero)
 (add-hook 'haskell-mode-hook 'intero-mode)
 
 
 ;; Install Company GHCI
-(package-install 'company-ghci)
+(require 'company-ghci)
 (push 'company-ghci company-backends)
 (add-hook 'haskell-mode-hook 'company-mode)
 ;;; To get completions in the REPL
