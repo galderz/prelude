@@ -5,6 +5,7 @@
 
 ;;; Code:
 
+
 ;; Show code in BEGIN/END SRC sections properly
 ;; By default it's show as black which can't be read
 (setq org-src-fontify-natively t)
@@ -16,6 +17,10 @@
 
 ;; Show everything by default
 (setq org-startup-folded nil)
+
+
+;; Show files indented by default
+(add-hook 'org-mode-hook 'org-indent-mode)
 
 
 ;;; org.el ends here
