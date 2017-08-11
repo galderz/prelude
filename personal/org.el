@@ -14,4 +14,8 @@
 (setq org-agenda-files '("~/0/notes"))
 
 
+;; Show everything by default
+(setq org-startup-folded nil)
+
+
 ;;; org.el ends here
