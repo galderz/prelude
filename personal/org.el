@@ -12,7 +12,10 @@
 
 
 ;; Set location of notes so that they can be searched...etc.
-(setq org-agenda-files '("~/0/notes"))
+(setq org-agenda-files '(
+    "~/0/notes"
+    "~/Dropbox/Notes"
+))
 
 
 ;; Show everything by default
