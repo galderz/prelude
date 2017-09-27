@@ -16,8 +16,7 @@
       `(("Freenode"
          :nick "galderz"
          :channels (:after-auth "#infinispan" "#hibernate-dev"
-                                "#emacs-circe" "#haskell-beginners"
-                                "#brass-monkey")
+                                "#emacs-circe" "#haskell-beginners")
          :nickserv-password ,freenode-password
          )
         ("Redhat"
