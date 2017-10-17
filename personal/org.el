@@ -26,4 +26,8 @@
 (add-hook 'org-mode-hook 'org-indent-mode)
 
 
+;; Add markdown to export backends
+(setq org-export-backends (quote (ascii html icalendar latex md)))
+
+
 ;;; org.el ends here
