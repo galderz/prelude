@@ -30,4 +30,9 @@
 (setq org-export-backends (quote (ascii html icalendar latex md)))
 
 
+;; Automatically load Github format exporter
+(eval-after-load "org"
+  '(require 'ox-gfm nil t))
+
+
 ;;; org.el ends here

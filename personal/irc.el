@@ -15,15 +15,18 @@
 (setq circe-network-options
       `(("Freenode"
          :nick "galderz"
-         :channels (:after-auth "#infinispan" "#hibernate-dev"
-                                "#emacs-circe" "#haskell-beginners")
+         :channels (:after-auth "#hibernate-dev"
+                                "#emacs-circe"
+                                "#haskell-beginners"
+                                "syndesis"
+                                )
          :nickserv-password ,freenode-password
          )
         ("Redhat"
          :host "irc-2.devel.redhat.com"
          :port (6667 . 6697)
          :nick "galderz"
-         :channels ("#jdg" "#jboss-support" "#neuchatel")
+         :channels ("#jdg" "#jboss-support" "#neuchatel" "#ce" "fabric8")
          )))
 
 ;; Ignore buffer activity unless mentioned

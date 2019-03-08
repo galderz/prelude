@@ -10,7 +10,7 @@
 
 ;; Set default font
 ;; Use this instead of set-default-font so that daemon loads it
-(setq default-frame-alist '((font . "Source Code Pro-12")))
+(setq default-frame-alist '((font . "Source Code Pro-14")))
 
 ;; Start with maximized windows
 (add-to-list 'default-frame-alist '(fullscreen . maximized))
